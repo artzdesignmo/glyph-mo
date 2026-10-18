@@ -218,7 +218,9 @@ function refreshGrid(){
   S.glyphs.forEach((g,i)=>{
     const {d,cv}=cells[i];
     d.classList.toggle('sel',i===S.sel);
-    cv.getContext('2d').drawImage(morphCanvas(g),0,0);
+    const cx=cv.getContext('2d');
+    cx.clearRect(0,0,cv.width,cv.height);
+    cx.drawImage(morphCanvas(g),0,0);
   });
   drawPreview();
 }
