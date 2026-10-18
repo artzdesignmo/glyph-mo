@@ -74,6 +74,16 @@ input[type=range]{width:100%;accent-color:var(--ink)}
     <button class="btn ghost" id="upSheetBtn" data-en="Upload full A-Z 0-9 sheet" data-zh="上傳成張 A-Z 0-9 圖">Upload full A-Z 0-9 sheet</button>
     <input type="file" id="sheetUp" accept="image/*" style="display:none">
     <div class="note" data-en="Sheet layout: 6×6 grid, A–Z then 0–9, left→right top→bottom." data-zh="成張圖要 6×6 排：A–Z 然後 0–9，由左至右、由上至下。">Sheet layout: 6×6 grid, A–Z then 0–9, left→right top→bottom.</div>
+    <div class="row">
+      <button class="chip" id="tplPrev" data-en="Preview template" data-zh="預覽格式圖">Preview template</button>
+      <button class="chip" id="tplDl" data-en="Download template" data-zh="下載格式圖">Download template</button>
+    </div>
+    <div id="tplOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;align-items:center;justify-content:center;padding:20px">
+      <div style="background:var(--card);border-radius:16px;padding:16px;max-width:92vw;max-height:92vh;overflow:auto;position:relative">
+        <button id="tplClose" style="position:absolute;top:8px;right:12px;border:none;background:none;font-size:22px;cursor:pointer;color:var(--ink)">×</button>
+        <canvas id="tplCanvas" style="max-width:100%;display:block"></canvas>
+      </div>
+    </div>
     <h3 data-en="Export" data-zh="匯出">Export</h3>
     <button class="btn" id="expPng">PNG ↓</button>
     <button class="btn" id="expJpg">JPG ↓</button>
@@ -289,6 +299,39 @@ $('sheetUp').onchange=e=>{
     refreshGrid();
   };
   img.src=URL.createObjectURL(f);
+};
+
+/* ---------- template ---------- */
+function drawTemplate(){
+  const cv=$('tplCanvas'),cols=6,rows=6,cell=160,pad=30;
+  cv.width=cols*cell+pad*2;cv.height=rows*cell+pad*2+40;
+  const x=cv.getContext('2d');
+  x.fillStyle='#ffffff';x.fillRect(0,0,cv.width,cv.height);
+  x.strokeStyle='#e11d48';x.lineWidth=2;
+  x.fillStyle='#111';x.font="700 20px 'Dela Gothic One',sans-serif";x.textAlign='center';
+  x.fillText('GLYPH MO — CHARSET TEMPLATE (6×6)',cv.width/2,26);
+  CHARS.forEach((c,i)=>{
+    const gx=pad+(i%cols)*cell,gy=pad+40+Math.floor(i/cols)*cell;
+    x.strokeStyle='#ccc';x.lineWidth=1;x.strokeRect(gx,gy,cell,cell);
+    // center guides
+    x.strokeStyle='#eee';
+    x.beginPath();x.moveTo(gx+cell/2,gy);x.lineTo(gx+cell/2,gy+cell);x.stroke();
+    x.beginPath();x.moveTo(gx,gy+cell/2);x.lineTo(gx+cell,gy+cell/2);x.stroke();
+    // char label
+    x.fillStyle='#e11d48';x.font="700 26px 'Dela Gothic One',sans-serif";
+    x.fillText(c,gx+cell/2,gy+38);
+    x.fillStyle='#999';x.font="12px sans-serif";
+    x.fillText((i+1)+'/36',gx+cell/2,gy+cell-12);
+  });
+  return cv;
+}
+$('tplPrev').onclick=()=>{drawTemplate();$('tplOverlay').style.display='flex';};
+$('tplClose').onclick=()=>{$('tplOverlay').style.display='none';};
+$('tplOverlay').onclick=e=>{if(e.target.id==='tplOverlay')$('tplOverlay').style.display='none';};
+$('tplDl').onclick=()=>{
+  const cv=drawTemplate();
+  const a=document.createElement('a');a.download='glyph-mo-template.png';
+  a.href=cv.toDataURL('image/png');a.click();
 };
 
 /* ---------- marching squares trace ---------- */
