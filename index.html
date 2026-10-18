@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glyph Mo — Font Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f4f5;--ink:#111;--muted:#888;--card:#fff;--line:#e4e4e7}
+[data-theme=black]{--bg:#0a0a0b;--ink:#f4f4f5;--muted:#71717a;--card:#18181b;--line:#27272a}
+[data-theme=white]{--bg:#fff;--ink:#111;--muted:#a1a1aa;--card:#fafafa;--line:#e4e4e7}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--ink);font-family:'Noto Sans TC',sans-serif;min-height:100vh;transition:background .3s}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10}
+.brand{font-family:'Dela Gothic One';font-size:22px}
+.hbtns{display:flex;gap:8px}
+.ibtn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-size:15px}
+main{display:flex;gap:20px;padding:20px;max-width:1400px;margin:0 auto;align-items:flex-start}
+#gridWrap{flex:1;min-width:0}
+#grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.cell{aspect-ratio:1;background:var(--card);border:2px solid var(--line);border-radius:12px;cursor:pointer;position:relative;overflow:hidden;transition:border-color .15s,transform .1s}
+.cell:hover{transform:scale(1.03)}
+.cell.sel{border-color:var(--ink)}
+.cell canvas{width:100%;height:100%;display:block}
+.cell .tag{position:absolute;top:4px;left:8px;font-size:10px;color:var(--muted);font-weight:700}
+#editor{width:340px;flex-shrink:0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;position:sticky;top:76px;max-height:calc(100vh - 100px);overflow-y:auto}
+#editor h3{font-family:'Dela Gothic One';font-size:14px;margin:16px 0 8px}
+#editor h3:first-child{margin-top:0}
+#preview{width:100%;aspect-ratio:1;background:var(--bg);border:1px solid var(--line);border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#preview canvas{max-width:100%;max-height:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:7px 12px;border-radius:18px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:12px;cursor:pointer;font-family:inherit}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.lbl{font-size:12px;color:var(--muted);margin:10px 0 4px;display:flex;justify-content:space-between}
+input[type=range]{width:100%;accent-color:var(--ink)}
+.btn{width:100%;padding:11px;border-radius:12px;border:1px solid var(--line);background:var(--ink);color:var(--bg);font-size:14px;cursor:pointer;font-family:inherit;margin-top:8px;font-weight:500}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn:active{transform:scale(.98)}
+#applyAll{margin-top:4px}
+.note{font-size:11px;color:var(--muted);line-height:1.7;margin-top:10px}
+#imgUp{display:none}
+@media(max-width:900px){main{flex-direction:column}#editor{width:100%;position:static;max-height:none}#grid{grid-template-columns:repeat(6,1fr)}}
+</style>
+</head>
+<body data-theme="silver">
+<header>
+  <div class="brand">Glyph Mo</div>
+  <div class="hbtns">
+    <button class="ibtn" id="langBtn">文</button>
+    <button class="ibtn" id="themeBtn">◐</button>
+  </div>
+</header>
+<main>
+  <div id="gridWrap"><div id="grid"></div></div>
+  <div id="editor">
+    <h3 data-en="Selected" data-zh="揀中嘅字">Selected</h3>
+    <div id="preview"><canvas id="pv" width="300" height="300"></canvas></div>
+    <h3 data-en="Morph" data-zh="變形">Morph</h3>
+    <div class="row" id="morphRow"></div>
+    <div class="lbl"><span data-en="Weight" data-zh="粗幼">Weight</span><span id="wVal">0</span></div>
+    <input type="range" id="pWeight" min="-40" max="40" value="0">
+    <div class="lbl"><span data-en="Width" data-zh="闊窄">Width</span><span id="wdVal">100%</span></div>
+    <input type="range" id="pWidth" min="50" max="160" value="100">
+    <div class="lbl"><span data-en="Slant" data-zh="斜體">Slant</span><span id="slVal">0°</span></div>
+    <input type="range" id="pSlant" min="-20" max="20" value="0">
+    <div class="lbl"><span data-en="Rotate" data-zh="旋轉">Rotate</span><span id="rtVal">0°</span></div>
+    <input type="range" id="pRotate" min="-30" max="30" value="0">
+    <button class="chip" id="applyAll" data-en="Apply to all 36 glyphs" data-zh="套用到全部 36 個字">Apply to all 36 glyphs</button>
+    <h3 data-en="Image → Glyph" data-zh="圖片轉字形">Image → Glyph</h3>
+    <button class="btn ghost" id="upBtn" data-en="Upload image as this glyph" data-zh="上傳圖片做呢隻字">Upload image as this glyph</button>
+    <input type="file" id="imgUp" accept="image/*">
+    <button class="chip" id="clearImg" data-en="Clear custom image" data-zh="清除自訂圖">Clear custom image</button>
+    <h3 data-en="Export" data-zh="匯出">Export</h3>
+    <button class="btn" id="expPng">PNG ↓</button>
+    <button class="btn" id="expJpg">JPG ↓</button>
+    <button class="btn" id="expTtf" data-en="TTF font ↓" data-zh="TTF 字體 ↓">TTF font ↓</button>
+    <button class="btn ghost" id="saveJson" data-en="Save design (JSON)" data-zh="儲存設計 (JSON)">Save design (JSON)</button>
+    <button class="btn ghost" id="loadJson" data-en="Load design (JSON)" data-zh="載入設計 (JSON)">Load design (JSON)</button>
+    <input type="file" id="jsonUp" accept=".json" style="display:none">
+    <div class="note" data-en="TTF is generated in-browser from traced glyph outlines (straight segments). For professional use, refine in a font editor." data-zh="TTF 係喺瀏覽器由字形輪廓即時生成（直線段）。專業用請再用字體軟件執。">TTF is generated in-browser from traced glyph outlines (straight segments). For professional use, refine in a font editor.</div>
+  </div>
+</main>
+<script>
+(()=>{
+"use strict";
+const CHARS=[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
+const MORPHS=[
+ {id:'normal',en:'Normal',zh:'普通'},
+ {id:'rounded',en:'Rounded',zh:'圓滑'},
+ {id:'sharp',en:'Sharp',zh:'尖銳'},
+ {id:'dino',en:'Dino',zh:'暴龍'},
+ {id:'explode',en:'Explode',zh:'爆炸'},
+ {id:'flat',en:'Flat',zh:'扁身'},
+ {id:'tall',en:'Tall',zh:'長身'},
+ {id:'circle',en:'Circle',zh:'圓形'},
+ {id:'square',en:'Square',zh:'方形'},
+ {id:'trap',en:'Trapezoid',zh:'梯形'},
+];
+const S={lang:'en',theme:'silver',sel:0,
+  glyphs:CHARS.map(c=>({c,morph:'normal',weight:0,width:100,slant:0,rotate:0,img:null}))};
+const GS=160; // glyph render size
+
+/* ---------- base glyph render ---------- */
+function baseCanvas(g){
+  const c=document.createElement('canvas');c.width=c.height=GS;
+  const x=c.getContext('2d');
+  if(g.img){ // custom image glyph
+    x.drawImage(g.img,0,0,GS,GS);
+    // threshold to silhouette
+    const d=x.getImageData(0,0,GS,GS),p=d.data;
+    for(let i=0;i<p.length;i+=4){const v=(p[i]+p[i+1]+p[i+2])/3;p[i]=p[i+1]=p[i+2]=0;p[i+3]=v<128?255:0;}
+    x.putImageData(d,0,0);
+    return c;
+  }
+  x.fillStyle='#000';x.textAlign='center';x.textBaseline='middle';
+  x.font=`700 ${GS*0.72}px 'Dela Gothic One',sans-serif`;
+  x.fillText(g.c,GS/2,GS/2+GS*0.03);
+  return c;
+}
+
+/* ---------- morphs ---------- */
+function morphCanvas(g){
+  const src=baseCanvas(g);
+  const c=document.createElement('canvas');c.width=c.height=GS;
+  const x=c.getContext('2d');
+  const m=g.morph,wd=g.width/100;
+  x.save();x.translate(GS/2,GS/2);
+  if(m==='flat')x.scale(1.45*wd,0.68);
+  else if(m==='tall')x.scale(0.68*wd,1.45);
+  else x.scale(wd,1);
+  if(g.slant)x.transform(1,0,Math.tan(g.slant*Math.PI/180),1,0,0);
+  if(g.rotate)x.rotate(g.rotate*Math.PI/180);
+  // weight via multiple offsets
+  const w=Math.round(g.weight/8);
+  x.translate(-GS/2,-GS/2);
+  if(m==='rounded')x.filter='blur(1.5px)';
+  if(m==='sharp')x.filter='contrast(1.6)';
+  if(w!==0){for(let i=-Math.abs(w);i<=Math.abs(w);i++)for(let j=-Math.abs(w);j<=Math.abs(w);j++)x.drawImage(src,i,j);}
+  else x.drawImage(src,0,0);
+  x.filter='none';x.restore();
+
+  if(m==='square'){ // pixelate
+    const t=document.createElement('canvas');t.width=t.height=GS;
+    const tx=t.getContext('2d');tx.imageSmoothingEnabled=false;
+    const s=document.createElement('canvas');s.width=s.height=20;
+    s.getContext('2d').drawImage(c,0,0,20,20);
+    tx.drawImage(s,0,0,GS,GS);return t;
+  }
+  if(m==='trap'){ // trapezoid: slice rows
+    const t=document.createElement('canvas');t.width=t.height=GS;
+    const tx=t.getContext('2d');
+    const rows=40;
+    for(let i=0;i<rows;i++){
+      const y0=i*GS/rows,h=GS/rows;
+      const sc=1.25-(i/rows)*0.5; // top wide → bottom narrow
+      const dw=GS*sc,dx=(GS-dw)/2;
+      tx.drawImage(c,0,y0,GS,h,dx,y0,dw,h);
+    }
+    return t;
+  }
+  if(m==='circle'){ // circular badge warp: fisheye
+    const t=document.createElement('canvas');t.width=t.height=GS;
+    const tx=t.getContext('2d');
+    const srcD=x.getImageData(0,0,GS,GS),out=tx.createImageData(GS,GS);
+    for(let py=0;py<GS;py++)for(let px=0;px<GS;px++){
+      let nx=(px-GS/2)/(GS/2),ny=(py-GS/2)/(GS/2);
+      const r=Math.hypot(nx,ny);if(r>1)continue;
+      const a=Math.atan2(ny,nx),rr=Math.pow(r,0.7);
+      const sx=Math.round(GS/2+Math.cos(a)*rr*GS/2),sy=Math.round(GS/2+Math.sin(a)*rr*GS/2);
+      const si=(sy*GS+sx)*4,di=(py*GS+px)*4;
+      out.data[di]=out.data[di+1]=out.data[di+2]=0;out.data[di+3]=srcD.data[si+3];
+    }
+    tx.putImageData(out,0,0);return t;
+  }
+  if(m==='dino'){ // spiky displacement
+    const t=document.createElement('canvas');t.width=t.height=GS;
+    const tx=t.getContext('2d');
+    const srcD=x.getImageData(0,0,GS,GS),out=tx.createImageData(GS,GS);
+    for(let py=0;py<GS;py++)for(let px=0;px<GS;px++){
+      const n=Math.sin(px*0.35)*Math.cos(py*0.3)*10;
+      const sx=Math.max(0,Math.min(GS-1,Math.round(px+n))),sy=Math.max(0,Math.min(GS-1,Math.round(py+n*0.6)));
+      const si=(sy*GS+sx)*4,di=(py*GS+px)*4;
+      out.data[di]=out.data[di+1]=out.data[di+2]=0;out.data[di+3]=srcD.data[si+3];
+    }
+    tx.putImageData(out,0,0);return t;
+  }
+  if(m==='explode'){ // radial fragments
+    const t=document.createElement('canvas');t.width=t.height=GS;
+    const tx=t.getContext('2d');
+    const n=8,bs=GS/n;
+    for(let iy=0;iy<n;iy++)for(let ix=0;ix<n;ix++){
+      const cxp=ix*bs+bs/2-GS/2,cyp=iy*bs+bs/2-GS/2;
+      const d=Math.hypot(cxp,cyp)/(GS/2);
+      const off=d*22,ang=Math.atan2(cyp,cxp);
+      tx.drawImage(c,ix*bs,iy*bs,bs,bs,ix*bs+Math.cos(ang)*off,iy*bs+Math.sin(ang)*off,bs,bs);
+    }
+    return t;
+  }
+  return c;
+}
+
+/* ---------- grid ---------- */
+const grid=document.getElementById('grid');
+const cells=[];
+function buildGrid(){
+  grid.innerHTML='';cells.length=0;
+  S.glyphs.forEach((g,i)=>{
+    const d=document.createElement('div');d.className='cell'+(i===S.sel?' sel':'');
+    const cv=document.createElement('canvas');cv.width=cv.height=GS;
+    const tag=document.createElement('span');tag.className='tag';tag.textContent=g.c;
+    d.append(cv,tag);d.onclick=()=>select(i);
+    grid.append(d);cells.push({d,cv});
+  });
+  refreshGrid();
+}
+function refreshGrid(){
+  S.glyphs.forEach((g,i)=>{
+    const {d,cv}=cells[i];
+    d.classList.toggle('sel',i===S.sel);
+    cv.getContext('2d').drawImage(morphCanvas(g),0,0);
+  });
+  drawPreview();
+}
+function select(i){S.sel=i;refreshGrid();syncEditor();}
+const pv=document.getElementById('pv'),pvx=pv.getContext('2d');
+function drawPreview(){
+  pvx.clearRect(0,0,300,300);
+  pvx.drawImage(morphCanvas(S.glyphs[S.sel]),0,0,300,300);
+}
+
+/* ---------- editor ---------- */
+const $=id=>document.getElementById(id);
+const morphRow=$('morphRow');
+MORPHS.forEach(m=>{
+  const b=document.createElement('button');b.className='chip';b.dataset.id=m.id;
+  b.dataset.en=m.en;b.dataset.zh=m.zh;b.textContent=m.en;
+  b.onclick=()=>{S.glyphs[S.sel].morph=m.id;syncEditor();refreshGrid();};
+  morphRow.append(b);
+});
+function syncEditor(){
+  const g=S.glyphs[S.sel];
+  morphRow.querySelectorAll('.chip').forEach(b=>b.classList.toggle('on',b.dataset.id===g.morph));
+  $('pWeight').value=g.weight;$('wVal').textContent=g.weight;
+  $('pWidth').value=g.width;$('wdVal').textContent=g.width+'%';
+  $('pSlant').value=g.slant;$('slVal').textContent=g.slant+'°';
+  $('pRotate').value=g.rotate;$('rtVal').textContent=g.rotate+'°';
+}
+$('pWeight').oninput=e=>{S.glyphs[S.sel].weight=+e.target.value;$('wVal').textContent=e.target.value;refreshGrid();};
+$('pWidth').oninput=e=>{S.glyphs[S.sel].width=+e.target.value;$('wdVal').textContent=e.target.value+'%';refreshGrid();};
+$('pSlant').oninput=e=>{S.glyphs[S.sel].slant=+e.target.value;$('slVal').textContent=e.target.value+'°';refreshGrid();};
+$('pRotate').oninput=e=>{S.glyphs[S.sel].rotate=+e.target.value;$('rtVal').textContent=e.target.value+'°';refreshGrid();};
+$('applyAll').onclick=()=>{
+  const s=S.glyphs[S.sel];
+  S.glyphs.forEach(g=>{if(g!==s){g.morph=s.morph;g.weight=s.weight;g.width=s.width;g.slant=s.slant;g.rotate=s.rotate;}});
+  refreshGrid();
+};
+
+/* ---------- image upload ---------- */
+$('upBtn').onclick=()=>$('imgUp').click();
+$('imgUp').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const img=new Image();
+  img.onload=()=>{S.glyphs[S.sel].img=img;refreshGrid();URL.revokeObjectURL(img.src);};
+  img.src=URL.createObjectURL(f);
+};
+$('clearImg').onclick=()=>{S.glyphs[S.sel].img=null;refreshGrid();};
+
+/* ---------- marching squares trace ---------- */
+function traceGlyph(g){
+  const cv=morphCanvas(g),x=cv.getContext('2d');
+  const d=x.getImageData(0,0,GS,GS).data;
+  const W2=40,H2=40,cw=GS/W2,ch=GS/H2;
+  // downsample binary
+  const bin=[];
+  for(let gy=0;gy<H2;gy++){bin[gy]=[];
+    for(let gx=0;gx<W2;gx++){
+      let s=0,n=0;
+      for(let py=0;py<ch;py++)for(let px=0;px<cw;px++){s+=d[((gy*ch+py)*GS+gx*cw+px)*4+3];n++;}
+      bin[gy][gx]=s/n>100?1:0;
+    }}
+  // find outline points via edge scan (simplified: collect boundary pixels, order by angle around centroid)
+  let pts=[];
+  for(let gy=0;gy<H2;gy++)for(let gx=0;gx<W2;gx++){
+    if(!bin[gy][gx])continue;
+    const nb=[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>!bin[gy+b]||!bin[gy+b][gx+a]);
+    if(nb)pts.push([gx,gy]);
+  }
+  if(pts.length<4)return null;
+  // centroid + angular sort (works for convex-ish; multi-contour simplified to largest)
+  let cx=0,cy=0;pts.forEach(p=>{cx+=p[0];cy+=p[1];});cx/=pts.length;cy/=pts.length;
+  pts.sort((a,b)=>Math.atan2(a[1]-cy,a[0]-cx)-Math.atan2(b[1]-cy,b[0]-cx));
+  // simplify: keep every kth
+  const keep=[];const step=Math.max(1,Math.floor(pts.length/48));
+  for(let i=0;i<pts.length;i+=step)keep.push(pts[i]);
+  return keep.map(([gx,gy])=>({x:gx/W2*1000,y:gy/H2*1000}));
+}
+
+/* ---------- export PNG/JPG ---------- */
+function exportSheet(type){
+  const cols=6,cell=300,pad=40;
+  const Wc=cols*cell+pad*2,Hc=6*cell+pad*2+60;
+  const c=document.createElement('canvas');c.width=Wc;c.height=Hc;
+  const x=c.getContext('2d');
+  const bg=getComputedStyle(document.body).getPropertyValue('--bg').trim();
+  x.fillStyle=type==='jpg'?'#ffffff':bg;x.fillRect(0,0,Wc,Hc);
+  x.fillStyle=getComputedStyle(document.body).getPropertyValue('--ink').trim();
+  x.font="700 28px 'Dela Gothic One',sans-serif";x.textAlign='center';
+  x.fillText('GLYPH MO — '+new Date().toISOString().slice(0,10),Wc/2,38);
+  S.glyphs.forEach((g,i)=>{
+    const gx=pad+(i%cols)*cell,gy=pad+60+Math.floor(i/cols)*cell;
+    x.drawImage(morphCanvas(g),gx+70,gy+70,cell-140,cell-140);
+  });
+  const a=document.createElement('a');
+  a.download='glyph-mo-charset.'+type;
+  a.href=type==='jpg'?c.toDataURL('image/jpeg',0.92):c.toDataURL('image/png');
+  a.click();
+}
+$('expPng').onclick=()=>exportSheet('png');
+$('expJpg').onclick=()=>exportSheet('jpg');
+
+/* ---------- export TTF via opentype.js ---------- */
+let otLoaded=false;
+function loadOT(cb){
+  if(otLoaded)return cb();
+  const s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js';
+  s.onload=()=>{otLoaded=true;cb();};s.onerror=()=>alert('Failed to load font engine');
+  document.head.append(s);
+}
+$('expTtf').onclick=()=>loadOT(()=>{
+  try{
+    const glyphs=[new opentype.Glyph({name:'.notdef',unicode:0,advanceWidth:1000,path:new opentype.Path()})];
+    S.glyphs.forEach(g=>{
+      const pts=traceGlyph(g);
+      const p=new opentype.Path();
+      if(pts&&pts.length>2){p.moveTo(pts[0].x,1000-pts[0].y);for(let i=1;i<pts.length;i++)p.lineTo(pts[i].x,1000-pts[i].y);p.close();}
+      glyphs.push(new opentype.Glyph({name:g.c,unicode:g.c.charCodeAt(0),advanceWidth:1000,path:p}));
+    });
+    const font=new opentype.Font({familyName:'GlyphMo',styleName:'Regular',unitsPerEm:1000,ascender:800,descender:-200,glyphs});
+    const buf=font.toArrayBuffer();
+    const blob=new Blob([buf],{type:'font/ttf'});
+    const a=document.createElement('a');a.download='GlyphMo.ttf';
+    a.href=URL.createObjectURL(blob);a.click();
+  }catch(err){alert('TTF export failed: '+err.message);}
+});
+
+/* ---------- save/load JSON ---------- */
+$('saveJson').onclick=()=>{
+  const data=S.glyphs.map(g=>({c:g.c,morph:g.morph,weight:g.weight,width:g.width,slant:g.slant,rotate:g.rotate}));
+  const a=document.createElement('a');a.download='glyph-mo-design.json';
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));a.click();
+};
+$('loadJson').onclick=()=>$('jsonUp').click();
+$('jsonUp').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{
+    const data=JSON.parse(r.result);
+    data.forEach((d,i)=>{if(S.glyphs[i]&&d.c===S.glyphs[i].c)Object.assign(S.glyphs[i],d);});
+    syncEditor();refreshGrid();
+  }catch(err){alert('Invalid file');}};
+  r.readAsText(f);
+};
+
+/* ---------- lang/theme ---------- */
+function setLang(l){S.lang=l;
+  document.querySelectorAll('[data-en]').forEach(el=>{el.textContent=l==='zh'?el.dataset.zh:el.dataset.en;});}
+$('langBtn').onclick=()=>setLang(S.lang==='en'?'zh':'en');
+const THEMES=['silver','white','black'];
+function setTheme(t){document.body.dataset.theme=t;try{localStorage.setItem('glyphmo-theme',t);}catch(e){}}
+$('themeBtn').onclick=()=>{const cur=document.body.dataset.theme;setTheme(THEMES[(THEMES.indexOf(cur)+1)%3]);};
+
+/* ---------- init ---------- */
+try{const t=localStorage.getItem('glyphmo-theme');if(t)setTheme(t);}catch(e){}
+document.fonts.ready.then(()=>{buildGrid();syncEditor();setLang('en');});
+})();
+</script>
+</body>
+</html>
