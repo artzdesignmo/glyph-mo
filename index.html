@@ -71,6 +71,9 @@ input[type=range]{width:100%;accent-color:var(--ink)}
     <button class="btn ghost" id="upBtn" data-en="Upload image as this glyph" data-zh="上傳圖片做呢隻字">Upload image as this glyph</button>
     <input type="file" id="imgUp" accept="image/*">
     <button class="chip" id="clearImg" data-en="Clear custom image" data-zh="清除自訂圖">Clear custom image</button>
+    <button class="btn ghost" id="upSheetBtn" data-en="Upload full A-Z 0-9 sheet" data-zh="上傳成張 A-Z 0-9 圖">Upload full A-Z 0-9 sheet</button>
+    <input type="file" id="sheetUp" accept="image/*" style="display:none">
+    <div class="note" data-en="Sheet layout: 6×6 grid, A–Z then 0–9, left→right top→bottom." data-zh="成張圖要 6×6 排：A–Z 然後 0–9，由左至右、由上至下。">Sheet layout: 6×6 grid, A–Z then 0–9, left→right top→bottom.</div>
     <h3 data-en="Export" data-zh="匯出">Export</h3>
     <button class="btn" id="expPng">PNG ↓</button>
     <button class="btn" id="expJpg">JPG ↓</button>
@@ -267,6 +270,26 @@ $('imgUp').onchange=e=>{
   img.src=URL.createObjectURL(f);
 };
 $('clearImg').onclick=()=>{S.glyphs[S.sel].img=null;refreshGrid();};
+$('upSheetBtn').onclick=()=>$('sheetUp').click();
+$('sheetUp').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const img=new Image();
+  img.onload=()=>{
+    const cols=6,rows=6,cw=img.width/cols,ch=img.height/rows;
+    for(let i=0;i<36&&i<S.glyphs.length;i++){
+      const cx0=(i%cols)*cw,cy0=Math.floor(i/cols)*ch;
+      const cc=document.createElement('canvas');cc.width=cc.height=GS;
+      const cx=cc.getContext('2d');
+      // white bg then draw cell (so threshold works)
+      cx.fillStyle='#fff';cx.fillRect(0,0,GS,GS);
+      cx.drawImage(img,cx0,cy0,cw,ch,0,0,GS,GS);
+      S.glyphs[i].img=cc;
+    }
+    URL.revokeObjectURL(img.src);
+    refreshGrid();
+  };
+  img.src=URL.createObjectURL(f);
+};
 
 /* ---------- marching squares trace ---------- */
 function traceGlyph(g){
