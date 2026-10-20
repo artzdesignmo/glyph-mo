@@ -334,34 +334,91 @@ $('tplDl').onclick=()=>{
   a.href=cv.toDataURL('image/png');a.click();
 };
 
-/* ---------- marching squares trace ---------- */
+/* ---------- contour trace: marching squares (outer + hole contours) ---------- */
+/* pure: bin grid (W*H, 1-cell border already included) -> contours in font coords */
+function contoursFromBin(bin,W,H,N){
+  const at=(bx,by)=>bin[by*W+bx];
+  const SEG={1:[['L','B']],2:[['B','R']],3:[['L','R']],4:[['T','R']],
+    5:[['T','L'],['B','R']],6:[['T','B']],7:[['T','L']],8:[['T','L']],
+    9:[['T','B']],10:[['T','R'],['L','B']],11:[['T','R']],12:[['L','R']],
+    13:[['B','R']],14:[['L','B']],0:[],15:[]};
+  const EP=(cx,cy,e)=>e==='T'?[cx+.5,cy]:e==='R'?[cx+1,cy+.5]:e==='B'?[cx+.5,cy+1]:[cx,cy+.5];
+  const key=(px,py)=>px.toFixed(1)+','+py.toFixed(1);
+  const segs=[];
+  for(let cy=0;cy<H-1;cy++)for(let cx=0;cx<W-1;cx++){
+    const ci=(at(cx,cy)?8:0)|(at(cx+1,cy)?4:0)|(at(cx+1,cy+1)?2:0)|(at(cx,cy+1)?1:0);
+    if(!ci||ci===15)continue;
+    for(const[a,b]of SEG[ci])segs.push([EP(cx,cy,a),EP(cx,cy,b)]);
+  }
+  const byPt=new Map();
+  segs.forEach((s,i)=>{for(const end of s){
+    const k=key(end[0],end[1]);
+    if(!byPt.has(k))byPt.set(k,[]);
+    byPt.get(k).push(i);}});
+  const used=new Uint8Array(segs.length);
+  const polys=[];
+  for(let i=0;i<segs.length;i++){
+    if(used[i])continue;
+    used[i]=1;
+    const poly=[segs[i][0],segs[i][1]];
+    let guard=0;
+    while(guard++<100000){
+      const last=poly[poly.length-1];
+      const first=poly[0];
+      if(poly.length>2&&key(last[0],last[1])===key(first[0],first[1])){poly.pop();break;}
+      const cand=(byPt.get(key(last[0],last[1]))||[]).find(j=>!used[j]);
+      if(cand===undefined)break;
+      used[cand]=1;
+      const s=segs[cand];
+      const nxt=(key(s[0][0],s[0][1])===key(last[0],last[1]))?s[1]:s[0];
+      poly.push(nxt);
+    }
+    if(poly.length>=4)polys.push(poly);
+  }
+  const toFont=poly=>poly.map(([px,py])=>({
+    x:Math.round((px-1)/N*1000),y:Math.round((1-(py-1)/N)*1000)}));
+  const simplify=(pts,max)=>{
+    if(pts.length<=max)return pts;
+    const step=Math.ceil(pts.length/max),out=[];
+    for(let i=0;i<pts.length;i+=step)out.push(pts[i]);
+    return out;};
+  const signedArea=pts=>{let a=0;
+    for(let i=0;i<pts.length;i++){const p=pts[i],q=pts[(i+1)%pts.length];
+      a+=p.x*q.y-q.x*p.y;}
+    return a/2;};
+  const inside=(pt,poly)=>{let c=false;
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const a=poly[i],b=poly[j];
+      if(((a.y>pt.y)!==(b.y>pt.y))&&(pt.x<(b.x-a.x)*(pt.y-a.y)/(b.y-a.y)+a.x))c=!c;}
+    return c;};
+  let contours=polys.map(p=>toFont(p)).map(p=>simplify(p,96)).filter(p=>p.length>=4);
+  contours=contours.map((c,i)=>{
+    let depth=0;
+    for(let j=0;j<contours.length;j++){
+      if(i!==j&&inside(c[0],contours[j]))depth++;
+    }
+    const a=signedArea(c),wantCCW=depth%2===0;
+    if((a>0)!==wantCCW)c.reverse();
+    return {pts:c,area:Math.abs(a),outer:depth%2===0};
+  });
+  return contours;
+}
+
+
+/* canvas -> bin grid -> contours (matches on-screen morph) */
 function traceGlyph(g){
   const cv=morphCanvas(g),x=cv.getContext('2d');
   const d=x.getImageData(0,0,GS,GS).data;
-  const W2=40,H2=40,cw=GS/W2,ch=GS/H2;
-  // downsample binary
-  const bin=[];
-  for(let gy=0;gy<H2;gy++){bin[gy]=[];
-    for(let gx=0;gx<W2;gx++){
-      let s=0,n=0;
-      for(let py=0;py<ch;py++)for(let px=0;px<cw;px++){s+=d[((gy*ch+py)*GS+gx*cw+px)*4+3];n++;}
-      bin[gy][gx]=s/n>100?1:0;
-    }}
-  // find outline points via edge scan (simplified: collect boundary pixels, order by angle around centroid)
-  let pts=[];
-  for(let gy=0;gy<H2;gy++)for(let gx=0;gx<W2;gx++){
-    if(!bin[gy][gx])continue;
-    const nb=[[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>!bin[gy+b]||!bin[gy+b][gx+a]);
-    if(nb)pts.push([gx,gy]);
+  const N=64,cw=GS/N,ch=GS/N;
+  const W=N+2,H=N+2;
+  const bin=new Uint8Array(W*H);
+  for(let gy=0;gy<N;gy++)for(let gx=0;gx<N;gx++){
+    let s=0;
+    for(let py=0;py<ch;py++)for(let px=0;px<cw;px++)
+      s+=d[(((gy*ch+py)|0)*GS+((gx*cw+px)|0))*4+3];
+    if(s/(ch*cw)>100)bin[(gy+1)*W+(gx+1)]=1;
   }
-  if(pts.length<4)return null;
-  // centroid + angular sort (works for convex-ish; multi-contour simplified to largest)
-  let cx=0,cy=0;pts.forEach(p=>{cx+=p[0];cy+=p[1];});cx/=pts.length;cy/=pts.length;
-  pts.sort((a,b)=>Math.atan2(a[1]-cy,a[0]-cx)-Math.atan2(b[1]-cy,b[0]-cx));
-  // simplify: keep every kth
-  const keep=[];const step=Math.max(1,Math.floor(pts.length/48));
-  for(let i=0;i<pts.length;i+=step)keep.push(pts[i]);
-  return keep.map(([gx,gy])=>({x:gx/W2*1000,y:gy/H2*1000}));
+  return contoursFromBin(bin,W,H,N).map(c=>c.pts);
 }
 
 /* ---------- export PNG/JPG ---------- */
@@ -400,9 +457,14 @@ $('expTtf').onclick=()=>loadOT(()=>{
   try{
     const glyphs=[new opentype.Glyph({name:'.notdef',unicode:0,advanceWidth:1000,path:new opentype.Path()})];
     S.glyphs.forEach(g=>{
-      const pts=traceGlyph(g);
+      const contours=traceGlyph(g);
       const p=new opentype.Path();
-      if(pts&&pts.length>2){p.moveTo(pts[0].x,1000-pts[0].y);for(let i=1;i<pts.length;i++)p.lineTo(pts[i].x,1000-pts[i].y);p.close();}
+      for(const pts of contours){
+        if(!pts||pts.length<4)continue;
+        p.moveTo(pts[0].x,pts[0].y);
+        for(let i=1;i<pts.length;i++)p.lineTo(pts[i].x,pts[i].y);
+        p.close();
+      }
       glyphs.push(new opentype.Glyph({name:g.c,unicode:g.c.charCodeAt(0),advanceWidth:1000,path:p}));
     });
     const font=new opentype.Font({familyName:'GlyphMo',styleName:'Regular',unitsPerEm:1000,ascender:800,descender:-200,glyphs});
