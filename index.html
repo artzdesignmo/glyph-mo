@@ -518,9 +518,9 @@ function loadOT(cb){
 }
 /* ---------- OpenX Pro gate (TTF export) ---------- */
 const PRO_API='https://openx-mo.vercel.app/api/pro/validate';
-const proFmt=k=>/^OX1-[A-Z2-7]{8}-[A-Z2-7]{8}$/.test((k||'').trim().toUpperCase());
+const proFmt=k=>{const s=(k||'').trim();return /^OX1-[A-Z2-7]{8}-[A-Z2-7]{8}$/i.test(s)||/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);};
 async function proValidate(k){
-  const r=await fetch(PRO_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:(k||'').trim().toUpperCase()})});
+  const r=await fetch(PRO_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:(k||'').trim()})});
   const j=await r.json();return !!j.valid;
 }
 async function proGate(next){
@@ -545,7 +545,7 @@ function proModal(next){
       <button id="proClose" style="position:absolute;top:8px;right:12px;border:none;background:none;font-size:22px;cursor:pointer;color:var(--ink)">×</button>
       <h3 style="margin:0 0 8px" data-en="Pro feature" data-zh="Pro 功能">Pro feature</h3>
       <p style="margin:0 0 12px;font-size:13px;line-height:1.55" data-en="TTF font export is an OpenX Pro feature. Enter your Pro key once — it unlocks all Mo tools." data-zh="TTF 字體匯出係 OpenX Pro 功能。輸入一次 Pro key，全部 Mo 工具一齊解鎖。">TTF font export is an OpenX Pro feature. Enter your Pro key once — it unlocks all Mo tools.</p>
-      <input id="proKey" type="text" placeholder="OX1-XXXXXXXX-XXXXXXXX" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-family:inherit;font-size:14px;text-transform:uppercase">
+      <input id="proKey" type="text" placeholder="Pro key" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-family:inherit;font-size:14px;text-transform:uppercase">
       <div id="proMsg" style="font-size:12px;min-height:16px;margin:8px 0;color:#e11d48"></div>
       <button class="btn" id="proUnlock" data-en="Unlock" data-zh="解鎖">Unlock</button>
       <a href="https://buymeacoffee.com/whynotartmoney" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:10px;font-size:13px;color:var(--ink)" data-en="Get a Pro key →" data-zh="攞 Pro key →">Get a Pro key →</a>
@@ -556,7 +556,7 @@ function proModal(next){
     document.getElementById('proClose').onclick=()=>{m.style.display='none';};
     document.getElementById('proUnlock').onclick=async()=>{
       const inp=document.getElementById('proKey'),msg=document.getElementById('proMsg');
-      const k=(inp.value||'').trim().toUpperCase();
+      const k=(inp.value||'').trim();
       if(!proFmt(k)){msg.textContent=S.lang==='zh'?'Key 格式唔啱':'Invalid key format';return;}
       msg.style.color='var(--ink)';msg.textContent=S.lang==='zh'?'驗證中…':'Verifying…';
       try{
