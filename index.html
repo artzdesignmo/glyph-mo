@@ -78,7 +78,7 @@ input[type=range]{width:100%;accent-color:var(--ink)}
       <button class="chip" id="tplPrev" data-en="Preview template" data-zh="預覽格式圖">Preview template</button>
       <button class="chip" id="tplDl" data-en="Download template" data-zh="下載格式圖">Download template</button>
     </div>
-    <div id="tplOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;align-items:center;justify-content:center;padding:20px">
+    <div id="tplOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;padding:20px">
       <div style="background:var(--card);border-radius:16px;padding:16px;max-width:92vw;max-height:92vh;overflow:auto;position:relative">
         <button id="tplClose" style="position:absolute;top:8px;right:12px;border:none;background:none;font-size:22px;cursor:pointer;color:var(--ink)">×</button>
         <canvas id="tplCanvas" style="max-width:100%;display:block"></canvas>
@@ -420,6 +420,9 @@ function traceGlyph(g){
   }
   return contoursFromBin(bin,W,H,N).map(c=>c.pts);
 }
+
+// move template overlay to <body>: fixed positioning breaks inside #editor's scroll container
+document.body.appendChild($('tplOverlay'));
 
 /* ---------- export PNG/JPG ---------- */
 function exportSheet(type){
