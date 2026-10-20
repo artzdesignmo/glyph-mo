@@ -52,7 +52,12 @@ input[type=range]{width:100%;accent-color:var(--ink)}
   </div>
 </header>
 <main>
-  <div id="gridWrap"><div id="grid"></div></div>
+  <div id="gridWrap"><div id="grid"></div>
+    <div id="setRow" style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="chip on" data-set="upper" data-en="ABC · Uppercase" data-zh="ABC · 大寫">ABC · Uppercase</button>
+      <button class="chip" data-set="lower" data-en="abc · Lowercase" data-zh="abc · 小寫">abc · Lowercase</button>
+      <button class="chip" data-set="sym" data-en="#@ · Symbols" data-zh="#@ · 符號">#@ · Symbols</button>
+    </div></div>
   <div id="editor">
     <h3 data-en="Selected" data-zh="揀中嘅字">Selected</h3>
     <div id="preview"><canvas id="pv" width="300" height="300"></canvas></div>
@@ -66,14 +71,14 @@ input[type=range]{width:100%;accent-color:var(--ink)}
     <input type="range" id="pSlant" min="-20" max="20" value="0">
     <div class="lbl"><span data-en="Rotate" data-zh="旋轉">Rotate</span><span id="rtVal">0°</span></div>
     <input type="range" id="pRotate" min="-30" max="30" value="0">
-    <button class="chip" id="applyAll" data-en="Apply to all 36 glyphs" data-zh="套用到全部 36 個字">Apply to all 36 glyphs</button>
+    <button class="chip" id="applyAll" data-en="Apply to all (this set)" data-zh="套用到本組全部">Apply to all (this set)</button>
     <h3 data-en="Image → Glyph" data-zh="圖片轉字形">Image → Glyph</h3>
     <button class="btn ghost" id="upBtn" data-en="Upload image as this glyph" data-zh="上傳圖片做呢隻字">Upload image as this glyph</button>
     <input type="file" id="imgUp" accept="image/*">
     <button class="chip" id="clearImg" data-en="Clear custom image" data-zh="清除自訂圖">Clear custom image</button>
     <button class="btn ghost" id="upSheetBtn" data-en="Upload full A-Z 0-9 sheet" data-zh="上傳成張 A-Z 0-9 圖">Upload full A-Z 0-9 sheet</button>
     <input type="file" id="sheetUp" accept="image/*" style="display:none">
-    <div class="note" data-en="Sheet layout: 6×6 grid, A–Z then 0–9, left→right top→bottom." data-zh="成張圖要 6×6 排：A–Z 然後 0–9，由左至右、由上至下。">Sheet layout: 6×6 grid, A–Z then 0–9, left→right top→bottom.</div>
+    <div class="note" data-en="Sheet layout follows the template (all sets, or just the current set): 6 columns, left→right, top→bottom." data-zh="格式圖跟範本排版（成份或而家呢一組）：6 欄，由左至右、由上至下。">Sheet layout: 6×6 grid, A–Z then 0–9, left→right top→bottom.</div>
     <div class="row">
       <button class="chip" id="tplPrev" data-en="Preview template" data-zh="預覽格式圖">Preview template</button>
       <button class="chip" id="tplDl" data-en="Download template" data-zh="下載格式圖">Download template</button>
@@ -97,7 +102,13 @@ input[type=range]{width:100%;accent-color:var(--ink)}
 <script>
 (()=>{
 "use strict";
-const CHARS=[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
+const SETS={
+ upper:[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'],
+ lower:[...'abcdefghijklmnopqrstuvwxyz'],
+ sym:[...'.,!?\'"-:;()&@#%+=/']
+};
+const CHARS=SETS.upper;
+const mkGlyphs=arr=>arr.map(c=>({c,morph:'normal',weight:0,width:100,slant:0,rotate:0,img:null}));
 const MORPHS=[
  {id:'normal',en:'Normal',zh:'普通'},
  {id:'rounded',en:'Rounded',zh:'圓滑'},
@@ -110,8 +121,11 @@ const MORPHS=[
  {id:'square',en:'Square',zh:'方形'},
  {id:'trap',en:'Trapezoid',zh:'梯形'},
 ];
-const S={lang:'en',theme:'silver',sel:0,
-  glyphs:CHARS.map(c=>({c,morph:'normal',weight:0,width:100,slant:0,rotate:0,img:null}))};
+const S={lang:'en',theme:'silver',sel:0,cur:'upper',
+  sets:{upper:mkGlyphs(SETS.upper),lower:mkGlyphs(SETS.lower),sym:mkGlyphs(SETS.sym)},
+  glyphs:null};
+S.glyphs=S.sets.upper;
+const allGlyphs=()=>[...S.sets.upper,...S.sets.lower,...S.sets.sym];
 const GS=160; // glyph render size
 
 /* ---------- base glyph render ---------- */
@@ -238,6 +252,12 @@ function refreshGrid(){
   drawPreview();
 }
 function select(i){S.sel=i;refreshGrid();syncEditor();}
+function switchSet(k){
+  S.cur=k;S.glyphs=S.sets[k];S.sel=0;
+  document.querySelectorAll('#setRow .chip').forEach(b=>b.classList.toggle('on',b.dataset.set===k));
+  buildGrid();syncEditor();
+}
+document.querySelectorAll('#setRow .chip').forEach(b=>b.onclick=()=>switchSet(b.dataset.set));
 const pv=document.getElementById('pv'),pvx=pv.getContext('2d');
 function drawPreview(){
   pvx.clearRect(0,0,300,300);
@@ -285,15 +305,29 @@ $('sheetUp').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   const img=new Image();
   img.onload=()=>{
-    const cols=6,rows=6,cw=img.width/cols,ch=img.height/rows;
-    for(let i=0;i<36&&i<S.glyphs.length;i++){
-      const cx0=(i%cols)*cw,cy0=Math.floor(i/cols)*ch;
+    const cut=(sx,sy,sw,sh)=>{
       const cc=document.createElement('canvas');cc.width=cc.height=GS;
       const cx=cc.getContext('2d');
-      // white bg then draw cell (so threshold works)
       cx.fillStyle='#fff';cx.fillRect(0,0,GS,GS);
-      cx.drawImage(img,cx0,cy0,cw,ch,0,0,GS,GS);
-      S.glyphs[i].img=cc;
+      cx.drawImage(img,sx,sy,sw,sh,0,0,GS,GS);
+      return cc;
+    };
+    const lay=templateLayout();
+    const ratioOk=Math.abs(img.width/img.height-lay.W/lay.H)<0.03*(lay.W/lay.H);
+    if(ratioOk){ // full 3-section template
+      const kx=img.width/lay.W,ky=img.height/lay.H;
+      for(const sec of lay.secs){
+        const set=S.sets[sec.key];
+        const top=(sec.y+TPL_SECT)*ky, cw=TPL_CELL*kx, ch=TPL_CELL*ky;
+        set.forEach((g,i)=>{
+          g.img=cut((TPL_PAD+(i%TPL_COLS)*TPL_CELL)*kx, top+Math.floor(i/TPL_COLS)*ch, cw, ch);
+        });
+      }
+    }else{ // single set image, 6 columns
+      const cols=6,rows=Math.ceil(S.glyphs.length/cols),cw=img.width/cols,ch=img.height/rows;
+      S.glyphs.forEach((g,i)=>{
+        g.img=cut((i%cols)*cw,Math.floor(i/cols)*ch,cw,ch);
+      });
     }
     URL.revokeObjectURL(img.src);
     refreshGrid();
@@ -302,27 +336,43 @@ $('sheetUp').onchange=e=>{
 };
 
 /* ---------- template ---------- */
+const TPL_CELL=160,TPL_PAD=30,TPL_COLS=6,TPL_TITLE=40,TPL_SECT=44;
+function templateLayout(){
+  const meta=[{key:'upper',title:'UPPERCASE · A-Z 0-9'},{key:'lower',title:'LOWERCASE · a-z'},{key:'sym',title:'SYMBOLS'}];
+  let y=TPL_PAD+TPL_TITLE;
+  const secs=[];
+  for(const m of meta){
+    const n=SETS[m.key].length,rows=Math.ceil(n/TPL_COLS);
+    secs.push({...m,n,rows,y});
+    y+=TPL_SECT+rows*TPL_CELL+24;
+  }
+  return {secs,W:TPL_COLS*TPL_CELL+TPL_PAD*2,H:y+TPL_PAD-24};
+}
 function drawTemplate(){
-  const cv=$('tplCanvas'),cols=6,rows=6,cell=160,pad=30;
-  cv.width=cols*cell+pad*2;cv.height=rows*cell+pad*2+40;
+  const lay=templateLayout();
+  const cv=$('tplCanvas');
+  cv.width=lay.W;cv.height=lay.H;
   const x=cv.getContext('2d');
   x.fillStyle='#ffffff';x.fillRect(0,0,cv.width,cv.height);
-  x.strokeStyle='#e11d48';x.lineWidth=2;
-  x.fillStyle='#111';x.font="700 20px 'Dela Gothic One',sans-serif";x.textAlign='center';
-  x.fillText('GLYPH MO — CHARSET TEMPLATE (6×6)',cv.width/2,26);
-  CHARS.forEach((c,i)=>{
-    const gx=pad+(i%cols)*cell,gy=pad+40+Math.floor(i/cols)*cell;
-    x.strokeStyle='#ccc';x.lineWidth=1;x.strokeRect(gx,gy,cell,cell);
-    // center guides
-    x.strokeStyle='#eee';
-    x.beginPath();x.moveTo(gx+cell/2,gy);x.lineTo(gx+cell/2,gy+cell);x.stroke();
-    x.beginPath();x.moveTo(gx,gy+cell/2);x.lineTo(gx+cell,gy+cell/2);x.stroke();
-    // char label
-    x.fillStyle='#e11d48';x.font="700 26px 'Dela Gothic One',sans-serif";
-    x.fillText(c,gx+cell/2,gy+38);
-    x.fillStyle='#999';x.font="12px sans-serif";
-    x.fillText((i+1)+'/36',gx+cell/2,gy+cell-12);
-  });
+  x.fillStyle='#111';x.font="700 22px 'Dela Gothic One',sans-serif";x.textAlign='center';
+  x.fillText('GLYPH MO — CHARSET TEMPLATE',cv.width/2,TPL_PAD+26);
+  for(const sec of lay.secs){
+    const y0=sec.y;
+    x.fillStyle='#111';x.font="700 18px 'Dela Gothic One',sans-serif";x.textAlign='left';
+    x.fillText(sec.title,TPL_PAD,y0+28);
+    x.textAlign='center';
+    SETS[sec.key].forEach((c,i)=>{
+      const gx=TPL_PAD+(i%TPL_COLS)*TPL_CELL,gy=y0+TPL_SECT+Math.floor(i/TPL_COLS)*TPL_CELL;
+      x.strokeStyle='#ccc';x.lineWidth=1;x.strokeRect(gx,gy,TPL_CELL,TPL_CELL);
+      x.strokeStyle='#eee';
+      x.beginPath();x.moveTo(gx+TPL_CELL/2,gy);x.lineTo(gx+TPL_CELL/2,gy+TPL_CELL);x.stroke();
+      x.beginPath();x.moveTo(gx,gy+TPL_CELL/2);x.lineTo(gx+TPL_CELL,gy+TPL_CELL/2);x.stroke();
+      x.fillStyle='#e11d48';x.font="700 26px 'Dela Gothic One',sans-serif";
+      x.fillText(c,gx+TPL_CELL/2,gy+38);
+      x.fillStyle='#999';x.font='12px sans-serif';
+      x.fillText((i+1)+'/'+sec.n,gx+TPL_CELL/2,gy+TPL_CELL-12);
+    });
+  }
   return cv;
 }
 $('tplPrev').onclick=()=>{drawTemplate();$('tplOverlay').style.display='flex';};
@@ -426,19 +476,28 @@ document.body.appendChild($('tplOverlay'));
 
 /* ---------- export PNG/JPG ---------- */
 function exportSheet(type){
-  const cols=6,cell=300,pad=40;
-  const Wc=cols*cell+pad*2,Hc=6*cell+pad*2+60;
+  const cols=6,cell=300,pad=40,sectH=54;
+  const rowsTotal=['upper','lower','sym'].reduce((a,k)=>a+Math.ceil(SETS[k].length/cols),0);
+  const Wc=cols*cell+pad*2,Hc=rowsTotal*cell+3*sectH+pad*2+60;
   const c=document.createElement('canvas');c.width=Wc;c.height=Hc;
   const x=c.getContext('2d');
   const bg=getComputedStyle(document.body).getPropertyValue('--bg').trim();
+  const ink=getComputedStyle(document.body).getPropertyValue('--ink').trim();
   x.fillStyle=type==='jpg'?'#ffffff':bg;x.fillRect(0,0,Wc,Hc);
-  x.fillStyle=getComputedStyle(document.body).getPropertyValue('--ink').trim();
-  x.font="700 28px 'Dela Gothic One',sans-serif";x.textAlign='center';
+  x.fillStyle=ink;x.font="700 28px 'Dela Gothic One',sans-serif";x.textAlign='center';
   x.fillText('GLYPH MO — '+new Date().toISOString().slice(0,10),Wc/2,38);
-  S.glyphs.forEach((g,i)=>{
-    const gx=pad+(i%cols)*cell,gy=pad+60+Math.floor(i/cols)*cell;
-    x.drawImage(morphCanvas(g),gx+70,gy+70,cell-140,cell-140);
-  });
+  let y=pad+60;
+  const titles={upper:'UPPERCASE',lower:'LOWERCASE',sym:'SYMBOLS'};
+  for(const k of ['upper','lower','sym']){
+    x.fillStyle=ink;x.font="700 22px 'Dela Gothic One',sans-serif";x.textAlign='left';
+    x.fillText(titles[k],pad,y+30);x.textAlign='center';
+    y+=sectH;
+    S.sets[k].forEach((g,i)=>{
+      const gx=pad+(i%cols)*cell,gy=y+Math.floor(i/cols)*cell;
+      x.drawImage(morphCanvas(g),gx+70,gy+70,cell-140,cell-140);
+    });
+    y+=Math.ceil(SETS[k].length/cols)*cell;
+  }
   const a=document.createElement('a');
   a.download='glyph-mo-charset.'+type;
   a.href=type==='jpg'?c.toDataURL('image/jpeg',0.92):c.toDataURL('image/png');
@@ -458,8 +517,9 @@ function loadOT(cb){
 }
 $('expTtf').onclick=()=>loadOT(()=>{
   try{
-    // trace all glyphs first, measure ink boxes
-    const traced=S.glyphs.map(g=>({g,contours:traceGlyph(g)}));
+    // trace ALL sets (upper + lower + symbols), measure ink boxes
+    const traced=[];
+    for(const k of ['upper','lower','sym'])for(const g of S.sets[k])traced.push({g,contours:traceGlyph(g)});
     let maxH=1;
     const boxes=traced.map(({contours})=>{
       let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
@@ -497,7 +557,8 @@ $('expTtf').onclick=()=>loadOT(()=>{
 
 /* ---------- save/load JSON ---------- */
 $('saveJson').onclick=()=>{
-  const data=S.glyphs.map(g=>({c:g.c,morph:g.morph,weight:g.weight,width:g.width,slant:g.slant,rotate:g.rotate}));
+  const ser=a=>a.map(g=>({c:g.c,morph:g.morph,weight:g.weight,width:g.width,slant:g.slant,rotate:g.rotate}));
+  const data={sets:{upper:ser(S.sets.upper),lower:ser(S.sets.lower),sym:ser(S.sets.sym)}};
   const a=document.createElement('a');a.download='glyph-mo-design.json';
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));a.click();
 };
@@ -507,7 +568,9 @@ $('jsonUp').onchange=e=>{
   const r=new FileReader();
   r.onload=()=>{try{
     const data=JSON.parse(r.result);
-    data.forEach((d,i)=>{if(S.glyphs[i]&&d.c===S.glyphs[i].c)Object.assign(S.glyphs[i],d);});
+    const apply=(arr,list)=>{list.forEach((d,i)=>{if(arr[i]&&d.c===arr[i].c)Object.assign(arr[i],d);});};
+    if(Array.isArray(data))apply(S.sets.upper,data); // legacy flat file
+    else if(data.sets)for(const k of ['upper','lower','sym'])if(data.sets[k])apply(S.sets[k],data.sets[k]);
     syncEditor();refreshGrid();
   }catch(err){alert('Invalid file');}};
   r.readAsText(f);
