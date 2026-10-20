@@ -455,17 +455,34 @@ function loadOT(cb){
 }
 $('expTtf').onclick=()=>loadOT(()=>{
   try{
-    const glyphs=[new opentype.Glyph({name:'.notdef',unicode:0,advanceWidth:1000,path:new opentype.Path()})];
-    S.glyphs.forEach(g=>{
-      const contours=traceGlyph(g);
+    // trace all glyphs first, measure ink boxes
+    const traced=S.glyphs.map(g=>({g,contours:traceGlyph(g)}));
+    let maxH=1;
+    const boxes=traced.map(({contours})=>{
+      let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+      for(const pts of contours)for(const pt of pts){
+        if(pt.x<x0)x0=pt.x;if(pt.y<y0)y0=pt.y;if(pt.x>x1)x1=pt.x;if(pt.y>y1)y1=pt.y;}
+      if(x1<x0)return null;
+      if(y1-y0>maxH)maxH=y1-y0;
+      return {x0,y0,x1,y1};
+    });
+    const SC=700/maxH,LSB=50; // cap height 700 units, tight 50-unit side bearings
+    const glyphs=[new opentype.Glyph({name:'.notdef',unicode:0,advanceWidth:600,path:new opentype.Path()})];
+    traced.forEach(({g,contours},idx)=>{
       const p=new opentype.Path();
-      for(const pts of contours){
-        if(!pts||pts.length<4)continue;
-        p.moveTo(pts[0].x,pts[0].y);
-        for(let i=1;i<pts.length;i++)p.lineTo(pts[i].x,pts[i].y);
-        p.close();
+      const box=boxes[idx];
+      let adv=600;
+      if(box){
+        const X=x=>Math.round((x-box.x0)*SC+LSB),Y=y=>Math.round((y-box.y0)*SC);
+        for(const pts of contours){
+          if(!pts||pts.length<4)continue;
+          p.moveTo(X(pts[0].x),Y(pts[0].y));
+          for(let i=1;i<pts.length;i++)p.lineTo(X(pts[i].x),Y(pts[i].y));
+          p.close();
+        }
+        adv=Math.round((box.x1-box.x0)*SC+LSB*2);
       }
-      glyphs.push(new opentype.Glyph({name:g.c,unicode:g.c.charCodeAt(0),advanceWidth:1000,path:p}));
+      glyphs.push(new opentype.Glyph({name:g.c,unicode:g.c.charCodeAt(0),advanceWidth:adv,path:p}));
     });
     const font=new opentype.Font({familyName:'GlyphMo',styleName:'Regular',unitsPerEm:1000,ascender:800,descender:-200,glyphs});
     const buf=font.toArrayBuffer();
